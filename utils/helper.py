@@ -1,0 +1,214 @@
+import pandas as pd
+import numpy as np
+import datetime
+import jwt
+import random
+import string
+import json
+
+from decimal import Decimal
+from collections import Iterable, OrderedDict
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class RedPrint:
+    def __init__(self, name):
+        self.name = name
+        self.mound = []
+
+    def route(self, rule, **options):
+        def decorator(f):
+            self.mound.append((f, rule, options))
+            return f
+
+        return decorator
+
+    def register(self, bp, url_prefix=None):
+        if url_prefix is None:
+            url_prefix = '/' + self.name
+        for f, rule, options in self.mound:
+            endpoint = options.pop("endpoint", f.__name__)
+            bp.add_url_rule(url_prefix + rule, endpoint, f, **options)
+
+
+class ShareTokenAuth:
+
+    @staticmethod
+    def encode(payload, secret_key):
+        """
+        生成认证Token
+        :param payload: dict
+        :param secret_key:
+        :return: string
+        """
+        return jwt.encode(
+            payload,
+            secret_key,
+        )
+
+    @staticmethod
+    def decode(token, secret_key):
+        """
+        验证Token
+        :param token:
+        :param secret_key
+        :return: integer|string
+        """
+        try:
+            payload = jwt.decode(token, secret_key, leeway=datetime.timedelta(minutes=1))
+            # 取消过期时间验证
+            # payload = jwt.decode(auth_token, secret_key, options={'verify_exp': False})
+            # 参数对验证
+            if 'data' in payload:
+                return True, payload
+            raise jwt.InvalidTokenError
+        except jwt.ExpiredSignatureError:
+            return False, 'Token过期'
+        except jwt.InvalidTokenError:
+            return False, '无效Token'
+
+
+def _RESPONSE(data, msg, code, status_code):
+    from flask import jsonify
+    rsp = {
+        'code': code,
+        'data': data,
+        'msg': msg,
+    }
+
+    return jsonify(rsp), status_code
+
+
+def SUCCESS_RSP(data="success", msg=None):
+    return _RESPONSE(data, msg, 1000, 200)
+
+
+def ACCEPTED_RSP(data="success", msg=None):
+    return _RESPONSE(data, msg, 1000, 202)
+
+
+def ERROR_RSP(data=None, msg=None, code=None, status_code=400):
+    return _RESPONSE(data, msg, code, status_code)
+
+
+def validate_date(date_text):
+    try:
+        datetime.datetime.strptime(date_text, '%Y-%m-%d')
+    except:
+        return False
+    return True
+
+
+def json_str_to_dict(data):
+    if data is None:
+        return
+    return json.loads(data)
+
+
+def replace_nan(obj, format_time=False):
+    if type(obj) == str:
+        return obj
+
+    if type(obj) == Decimal:
+        return float(obj)
+
+    if isinstance(obj, OrderedDict):
+        r = OrderedDict()
+        for key in obj:
+            r[key] = replace_nan(obj[key])
+        return r
+
+    if isinstance(obj, dict):
+        r = {}
+        for key in obj:
+            r[key] = replace_nan(obj[key])
+        return r
+
+    if isinstance(obj, Iterable):
+        return list(map(lambda x: replace_nan(x), obj))
+
+    if format_time and isinstance(obj, datetime.datetime):
+        return obj.strftime('%Y-%m-%d %H:%M:%S')
+
+    if isinstance(obj, datetime.date):
+        return obj.strftime('%Y-%m-%d')
+
+    if pd.isna(obj) or np.isinf(obj):
+        return None
+
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+
+    if isinstance(obj, np.int64):
+        return str(obj)
+
+    return obj
+
+
+def generate_sql_pagination():
+    from flask import request
+    from bases.paginations import SQLPagination
+    page = request.args.get('page', 1)
+    page_size = request.args.get('page_size', 10)
+    ordering = request.args.get('ordering')
+    if ordering:
+        ordering = ordering.split(',')
+
+    return SQLPagination(page, page_size, ordering)
+
+
+def generate_hash_char(num: int, flag=True) -> str:
+    if flag:
+        num = num + 100009527
+    s = 'mnopqrstbc1y832vwx5u49deghijklza67f'
+    length = len(s)
+
+    def temp(n):
+        if num == 0:
+            return s[0]
+
+        if n == 0:
+            return ''
+        return temp(n // length) + s[n % length]
+
+    return temp(num)
+
+
+def select_periods():
+    from flask import request
+    period = request.args.get('period')
+    if period == 'weekly':
+        return 'W'
+
+    if period == 'monthly':
+        return 'M'
+
+    return
+
+
+def parse_date_counts(date_counts):
+    try:
+        dates, counts = zip(*date_counts)
+    except ValueError:
+        return [], []
+    return replace_nan(dates), list(counts)
+
+
+def generate_random_str(count: int):
+    src = string.ascii_letters + string.digits
+    sec = random.sample(src, count)
+    random.shuffle(sec)
+    return ''.join(sec)
+
+
+if __name__ == '__main__':
+    print(generate_random_str(10))
+

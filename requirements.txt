@@ -1,0 +1,25 @@
+flask==1.1.2
+flask_script==2.0.6
+flask_sqlalchemy==2.4.4
+flask_migrate==2.5.3
+flask_restful==0.3.8
+redis==3.5.3
+elasticsearch == 7.7.1
+elasticsearch_dsl == 7.2.0
+flask_caching
+ujson
+pymysql
+gunicorn
+requests
+gevent
+surfing
+openpyxl
+empyrical
+pydantic
+SQLAlchemy < 1.4
+six
+packaging
+lxml
+xlwt
+PyJWT==2.0.0
+tencentcloud-sdk-python
